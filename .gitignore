@@ -1,0 +1,19 @@
+# Android 构建产物
+android-app/.gradle/
+android-app/app/build/
+android-app/build/
+android-app/local.properties
+
+# APK 文件（太大了不上传）
+*.apk
+
+# 备份文件
+*.bak
+*.bak-*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件夹
+新建文件夹/
