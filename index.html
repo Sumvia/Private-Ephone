@@ -23698,7 +23698,7 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
           // 构建其他成员列表（除了自己）
           const otherMembers = groupChat.members
             .filter(m => m.id !== member.id)
-            .map(m => `- **${m.originalName}**: ${m.persona}`)
+            .map(m => `- **${m.originalName}** (群昵称: ${m.groupNickname}): ${m.persona}`)
             .join('\n');
 
           // 私聊记忆上下文
@@ -23736,14 +23736,89 @@ ${privateHistory.map(m => {
 `;
           }
 
-          return `# 你是 ${member.originalName}
-群昵称：${member.groupNickname}
+          // 构建红包状态上下文（参考假群聊格式）
+          let redPacketContext = "";
+          const recentRedPackets = groupChat.history.slice(-50).filter(m => m.type === "red_packet");
+          if (recentRedPackets.length > 0) {
+            redPacketContext = "\n# 当前红包状态 (重要情报)\n";
+            for (const packet of recentRedPackets) {
+              const claimedCount = Object.keys(packet.claimedBy || {}).length;
+              redPacketContext += `- (时间戳: ${packet.timestamp}) 由 **${packet.senderName}** 发送的红包:\n`;
+              if (packet.isFullyClaimed) {
+                redPacketContext += `  - **状态**: 已被领完。\n`;
+                // 找出手气王
+                if (packet.packetType === "lucky" && packet.count > 1) {
+                  let luckyKing = { name: "", amount: -1 };
+                  Object.entries(packet.claimedBy || {}).forEach(([name, amount]) => {
+                    if (amount > luckyKing.amount) {
+                      luckyKing = { name, amount };
+                    }
+                  });
+                  if (luckyKing.name) {
+                    redPacketContext += `  - **手气王**: ${luckyKing.name} (抢到了 ${luckyKing.amount.toFixed(2)} 元)\n`;
+                  }
+                }
+              } else {
+                redPacketContext += `  - **状态**: 可领取 (${claimedCount}/${packet.count})。\n`;
+                // 检查当前角色是否已领取
+                const hasClaimedByMe = packet.claimedBy && (packet.claimedBy[member.originalName] || packet.claimedBy[member.groupNickname]);
+                if (hasClaimedByMe) {
+                  redPacketContext += `  - **你已领取**: 是\n`;
+                } else {
+                  redPacketContext += `  - **你已领取**: 否 (可以抢!)\n`;
+                }
+                if (claimedCount > 0) {
+                  const claimedList = Object.keys(packet.claimedBy).join('、');
+                  redPacketContext += `  - **已领取者**: ${claimedList}\n`;
+                }
+              }
+            }
+          }
+
+          // 构建投票状态上下文（参考假群聊格式，显示完整选项）
+          let pollContext = "";
+          const recentPolls = groupChat.history.slice(-50).filter(m => m.type === "poll" && !m.isClosed);
+          if (recentPolls.length > 0) {
+            pollContext = "\n# 当前进行中的投票 (你可以参与!)\n";
+            for (const poll of recentPolls) {
+              const totalVotes = Object.values(poll.votes || {}).reduce((sum, voters) => sum + voters.length, 0);
+              pollContext += `- (时间戳: ${poll.timestamp}) 由 **${poll.senderName || myNickname}** 发起的投票:\n`;
+              pollContext += `  - **问题**: ${poll.question}\n`;
+              pollContext += `  - **可选选项** (choice字段必须完全匹配以下之一):\n`;
+              poll.options.forEach((opt, idx) => {
+                const optVotes = (poll.votes && poll.votes[opt]) ? poll.votes[opt].length : 0;
+                pollContext += `    - "${opt}" (当前${optVotes}票)\n`;
+              });
+              // 检查当前角色是否已投票
+              let myVote = null;
+              Object.entries(poll.votes || {}).forEach(([option, voters]) => {
+                if (voters.includes(member.originalName) || voters.includes(member.groupNickname)) {
+                  myVote = option;
+                }
+              });
+              if (myVote) {
+                pollContext += `  - **你已投票**: 是 (选了"${myVote}")\n`;
+              } else {
+                pollContext += `  - **你已投票**: 否 (可以投票!)\n`;
+              }
+            }
+          }
+
+          return `# 你的身份
+你是 **${member.originalName}**，群昵称是"${member.groupNickname}"。
 人设：${member.persona}
+当前时间：${currentTime}
+
+# 【最重要规则】
+1. 你只能扮演 **${member.originalName}** 这一个角色
+2. 【禁止】扮演或模仿其他任何人（包括用户${myNickname}和其他群成员）
+3. 所有输出的JSON中，name字段【必须】是"${member.originalName}"
+4. 不要在你的消息中包含其他人的对话
 
 # 群聊情境
-群里还有：
+群里还有以下成员（你不能扮演他们）：
 ${otherMembers}
-用户：${myNickname}
+用户：**${myNickname}**（你绝对不能扮演用户）
 ${privateMemoryContext}
 ${responderHint}
 
@@ -23752,15 +23827,32 @@ ${responderHint}
 - 可以发多条消息（拆句），让对话有节奏感
 - 可以回应其他人说的话，让群聊有互动
 
-# 输出格式
-直接输出JSON数组，name字段填你的名字"${member.originalName}"
-示例：[{"type": "text", "name": "${member.originalName}", "message": "内容"}]
+# 红包互动规则
+- 当看到可领取的红包时，你可以根据自己的性格决定是否使用 \`open_red_packet\` 指令去抢
+- 抢红包前【必须】检查下方的"当前红包状态"，确认：1)红包未领完 2)你还没领过
+- 抢到后请发表符合你人设的评论（抢得多可以炫耀，抢得少可以自嘲）
 
-直接输出JSON：`;
+# 投票互动规则
+- 当看到进行中的投票时，你可以根据自己的性格决定是否参与
+- 投票前【必须】检查下方的"当前进行中的投票"，确认：1)投票未结束 2)你还没投过
+- choice字段【必须】完全匹配选项列表中的某一个选项文本
+
+# 输出格式
+直接输出JSON数组，每个对象的name字段必须是"${member.originalName}"
+示例：[{"type": "text", "name": "${member.originalName}", "message": "你想说的话"}]
+
+## 可用指令：
+- **发文字**: \`{"type": "text", "name": "${member.originalName}", "message": "内容"}\`
+- **抢红包**: \`{"type": "open_red_packet", "name": "${member.originalName}", "packet_timestamp": 红包的时间戳数字}\`
+- **参与投票**: \`{"type": "vote", "name": "${member.originalName}", "poll_timestamp": 投票的时间戳数字, "choice": "完全匹配的选项文本"}\`
+${redPacketContext}
+${pollContext}
+根据以上规则和对话历史，以${member.originalName}的身份回复：`;
         }
 
         /**
          * 构建消息历史payload（用于真群聊）
+         * 参考假群聊格式，添加时间戳前缀，让AI能够使用时间戳
          * @param {object} groupChat - 群聊对象
          * @param {number} maxMemory - 最大记忆条数
          * @returns {Array} - 消息历史数组
@@ -23769,13 +23861,47 @@ ${responderHint}
           const myNickname = groupChat.settings.myNickname || "我";
           const historySlice = groupChat.history
             .filter(msg => !msg.isHidden && msg.type !== 'summary' && msg.type !== 'share_card' && msg.type !== 'narrative')
-            .slice(-(maxMemory || 10));
+            .slice(-(maxMemory || 15));
 
           return historySlice.map(msg => {
+            // 系统消息（隐藏的提示）
             if (msg.role === 'system') {
-              return { role: 'system', content: msg.content };
+              return { role: 'system', content: `(Timestamp: ${msg.timestamp}) ${msg.content}` };
             }
 
+            // 投票消息特殊处理
+            if (msg.type === 'poll') {
+              const pollInfo = `(Timestamp: ${msg.timestamp}) [${msg.senderName || myNickname} 发起了投票] 问题："${msg.question}"，选项：${msg.options.map(o => `"${o}"`).join('、')}`;
+              return { role: msg.role === 'user' ? 'user' : 'assistant', content: pollInfo };
+            }
+
+            // 红包消息特殊处理
+            if (msg.type === 'red_packet') {
+              const packetInfo = `(Timestamp: ${msg.timestamp}) [${msg.senderName} 发了一个红包] "${msg.greeting || '恭喜发财'}"`;
+              return { role: 'assistant', content: packetInfo };
+            }
+
+            // 系统通知消息（如领红包通知）
+            if (msg.type === 'pat_message') {
+              return { role: 'system', content: `(Timestamp: ${msg.timestamp}) [系统通知] ${msg.content}` };
+            }
+
+            // 检测是否为包含图片的消息（用户上传的图片）
+            const hasImageContent = Array.isArray(msg.content) &&
+              msg.content.some(item => item.type === 'image_url');
+
+            if (hasImageContent) {
+              // 多模态消息：包含图片，添加时间戳前缀
+              const prefix = `(Timestamp: ${msg.timestamp}) `;
+              if (msg.role === 'user') {
+                return { role: 'user', content: [{ type: 'text', text: prefix }, ...msg.content] };
+              } else {
+                const senderName = msg.senderName || '未知';
+                return { role: 'assistant', content: [{ type: 'text', text: `${prefix}[${senderName}] ` }, ...msg.content] };
+              }
+            }
+
+            // 构建消息内容文本
             let contentText = '';
             if (msg.type === 'text' || !msg.type) {
               contentText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
@@ -23784,7 +23910,7 @@ ${responderHint}
             } else if (msg.type === 'voice_message') {
               contentText = `[发送了语音消息: ${msg.content}]`;
             } else if (msg.type === 'ai_image' || msg.type === 'user_photo') {
-              contentText = `[发送了图片]`;
+              contentText = `[发送了图片: ${msg.content || '无描述'}]`;
             } else {
               contentText = typeof msg.content === 'string' ? msg.content : '[其他类型消息]';
             }
@@ -23794,14 +23920,14 @@ ${responderHint}
               contentText = contentText.trim();
             }
 
-            const senderName = msg.role === 'user' ? myNickname : (msg.senderName || '未知');
-            // 使用 OpenAI 的 name 字段标识发言者，避免在 content 中添加前缀被 AI 模仿
+            // 用户消息：添加时间戳前缀
             if (msg.role === 'user') {
-              return { role: 'user', content: contentText };
-            } else {
-              // 使用 name 字段标识发言者（OpenAI API 原生支持，不会被 AI 模仿）
-              return { role: 'assistant', name: senderName, content: contentText };
+              return { role: 'user', content: `(Timestamp: ${msg.timestamp}) ${myNickname}: ${contentText}` };
             }
+
+            // AI/角色消息：添加时间戳和发送者名字前缀
+            const senderName = msg.senderName || '未知';
+            return { role: 'assistant', content: `(Timestamp: ${msg.timestamp}) ${senderName}: ${contentText}` };
           }).filter(Boolean);
         }
 
@@ -24046,11 +24172,19 @@ ${responderHint}
           // JSON结构验证：过滤无效消息，保留有效消息
           parsed = parsed.filter(msg => {
             if (!msg || typeof msg !== 'object') return false;
-            // 必须有消息内容（message或content）
-            const hasContent = msg.message || msg.content;
             // 如果有name字段，必须是当前角色
             const validName = !msg.name || msg.name === member.originalName;
-            return hasContent && validName;
+            if (!validName) return false;
+            // 对于红包和投票操作，不需要content字段，只需验证相关字段存在
+            if (msg.type === 'open_red_packet') {
+              return !!msg.packet_timestamp;
+            }
+            if (msg.type === 'vote') {
+              return !!msg.poll_timestamp && !!msg.choice;
+            }
+            // 其他类型必须有消息内容（message或content）
+            const hasContent = msg.message || msg.content;
+            return hasContent;
           });
 
           // 如果过滤后没有有效消息，尝试使用 fallback 内容
@@ -24204,6 +24338,27 @@ ${responderHint}
                   content: msgData.content || ''
                 });
                 break;
+              case 'open_red_packet':
+                // 真群聊模式下的抢红包处理
+                if (msgData.packet_timestamp) {
+                  messages.push({
+                    ...baseMessage,
+                    type: 'open_red_packet',
+                    packet_timestamp: msgData.packet_timestamp
+                  });
+                }
+                break;
+              case 'vote':
+                // 真群聊模式下的投票处理
+                if (msgData.poll_timestamp && msgData.choice) {
+                  messages.push({
+                    ...baseMessage,
+                    type: 'vote',
+                    poll_timestamp: msgData.poll_timestamp,
+                    choice: msgData.choice
+                  });
+                }
+                break;
               default:
                 // 未知类型作为文本处理
                 if (msgData.message || msgData.content) {
@@ -24233,6 +24388,100 @@ ${responderHint}
             document.getElementById("chat-interface-screen").classList.contains("active");
 
           for (const msg of turnMessages) {
+            // 处理真群聊模式下的抢红包
+            if (msg.type === 'open_red_packet' && msg.packet_timestamp) {
+              // 使用 Number() 确保类型一致进行比较
+              const targetTimestamp = Number(msg.packet_timestamp);
+              const packetToOpen = chat.history.find(m => m.type === 'red_packet' && Number(m.timestamp) === targetTimestamp);
+              if (packetToOpen && !packetToOpen.isFullyClaimed &&
+                  !(packetToOpen.claimedBy && packetToOpen.claimedBy[msg.senderName])) {
+
+                // 计算领取金额
+                let claimedAmount = 0;
+                const remainingAmount = packetToOpen.totalAmount -
+                  Object.values(packetToOpen.claimedBy || {}).reduce((sum, val) => sum + val, 0);
+                const remainingCount = packetToOpen.count - Object.keys(packetToOpen.claimedBy || {}).length;
+
+                if (remainingCount > 0) {
+                  if (remainingCount === 1) {
+                    claimedAmount = remainingAmount;
+                  } else {
+                    const min = 0.01;
+                    const max = remainingAmount - (remainingCount - 1) * min;
+                    claimedAmount = Math.random() * (max - min) + min;
+                  }
+                  claimedAmount = parseFloat(claimedAmount.toFixed(2));
+
+                  // 更新红包数据
+                  if (!packetToOpen.claimedBy) packetToOpen.claimedBy = {};
+                  packetToOpen.claimedBy[msg.senderName] = claimedAmount;
+
+                  // 发送领取通知
+                  const claimedNotice = {
+                    role: "system",
+                    type: "pat_message",
+                    content: `${msg.senderName} 领取了 ${packetToOpen.senderName} 的红包`,
+                    timestamp: Date.now()
+                  };
+                  chat.history.push(claimedNotice);
+                  if (isViewingThisChat) appendMessage(claimedNotice, chat);
+
+                  // 检查红包是否被领完
+                  if (Object.keys(packetToOpen.claimedBy).length >= packetToOpen.count) {
+                    packetToOpen.isFullyClaimed = true;
+                    const finishedNotice = {
+                      role: "system",
+                      type: "pat_message",
+                      content: `${packetToOpen.senderName} 的红包已被领完`,
+                      timestamp: Date.now() + 1
+                    };
+                    chat.history.push(finishedNotice);
+                    if (isViewingThisChat) appendMessage(finishedNotice, chat);
+                  }
+                }
+                // 跳过原始的open_red_packet消息，不添加到历史
+                continue;
+              }
+              // 如果红包无效，跳过
+              continue;
+            }
+
+            // 处理真群聊模式下的投票
+            if (msg.type === 'vote' && msg.poll_timestamp && msg.choice) {
+              const targetTimestamp = Number(msg.poll_timestamp);
+              const pollToVote = chat.history.find(m => m.type === 'poll' && Number(m.timestamp) === targetTimestamp);
+
+              if (pollToVote && !pollToVote.isClosed) {
+                const displayName = msg.senderName;
+
+                // 确保 votes 对象存在
+                if (!pollToVote.votes) pollToVote.votes = {};
+
+                // 移除该角色之前的所有投票（允许改票）
+                Object.keys(pollToVote.votes).forEach(option => {
+                  const voterIndex = pollToVote.votes[option].indexOf(displayName);
+                  if (voterIndex > -1) {
+                    pollToVote.votes[option].splice(voterIndex, 1);
+                  }
+                });
+
+                // 将投票添加到选择的选项
+                if (!pollToVote.votes[msg.choice]) {
+                  pollToVote.votes[msg.choice] = [];
+                }
+                if (!pollToVote.votes[msg.choice].includes(displayName)) {
+                  pollToVote.votes[msg.choice].push(displayName);
+                }
+
+                // 刷新界面
+                if (isViewingThisChat) {
+                  renderChatInterface(chatId);
+                }
+              }
+              // 跳过原始的vote消息，不添加到历史
+              continue;
+            }
+
             chat.history.push(msg);
             if (isViewingThisChat) {
               appendMessage(msg, chat);
@@ -24339,12 +24588,111 @@ ${responderHint}
               // 解析响应
               const characterMessages = parseCharacterResponse(responseText, member, chat);
 
-              // 添加到本轮消息
-              allTurnMessages.push(...characterMessages);
-
-              // 在顺序执行时，也把这个角色的消息先加入历史，以便下一个角色能看到
+              // 处理每条消息（包括红包和投票动作）
               for (const msg of characterMessages) {
+                // 处理抢红包动作
+                if (msg.type === 'open_red_packet' && msg.packet_timestamp) {
+                  const targetTimestamp = Number(msg.packet_timestamp);
+                  const packetToOpen = chat.history.find(m => m.type === 'red_packet' && Number(m.timestamp) === targetTimestamp);
+
+                  if (packetToOpen && !packetToOpen.isFullyClaimed &&
+                      !(packetToOpen.claimedBy && packetToOpen.claimedBy[msg.senderName])) {
+
+                    // 计算领取金额
+                    let claimedAmount = 0;
+                    const remainingAmount = packetToOpen.totalAmount -
+                      Object.values(packetToOpen.claimedBy || {}).reduce((sum, val) => sum + val, 0);
+                    const remainingCount = packetToOpen.count - Object.keys(packetToOpen.claimedBy || {}).length;
+
+                    if (remainingCount > 0) {
+                      if (remainingCount === 1) {
+                        claimedAmount = remainingAmount;
+                      } else {
+                        const min = 0.01;
+                        const max = remainingAmount - (remainingCount - 1) * min;
+                        claimedAmount = Math.random() * (max - min) + min;
+                      }
+                      claimedAmount = parseFloat(claimedAmount.toFixed(2));
+
+                      // 更新红包数据
+                      if (!packetToOpen.claimedBy) packetToOpen.claimedBy = {};
+                      packetToOpen.claimedBy[msg.senderName] = claimedAmount;
+
+                      // 发送领取通知
+                      const claimedNotice = {
+                        role: "system",
+                        type: "pat_message",
+                        content: `${msg.senderName} 领取了 ${packetToOpen.senderName} 的红包，抢到 ${claimedAmount.toFixed(2)} 元`,
+                        timestamp: Date.now()
+                      };
+                      chat.history.push(claimedNotice);
+                      allTurnMessages.push(claimedNotice);
+
+                      // 检查红包是否被领完
+                      if (Object.keys(packetToOpen.claimedBy).length >= packetToOpen.count) {
+                        packetToOpen.isFullyClaimed = true;
+                        // 找出手气王
+                        let luckyKing = { name: "", amount: -1 };
+                        if (packetToOpen.packetType === "lucky" && packetToOpen.count > 1) {
+                          Object.entries(packetToOpen.claimedBy).forEach(([name, amount]) => {
+                            if (amount > luckyKing.amount) {
+                              luckyKing = { name, amount };
+                            }
+                          });
+                        }
+                        const finishedContent = luckyKing.name
+                          ? `${packetToOpen.senderName} 的红包已被领完，${luckyKing.name} 手气最佳，抢到 ${luckyKing.amount.toFixed(2)} 元`
+                          : `${packetToOpen.senderName} 的红包已被领完`;
+                        const finishedNotice = {
+                          role: "system",
+                          type: "pat_message",
+                          content: finishedContent,
+                          timestamp: Date.now() + 1
+                        };
+                        chat.history.push(finishedNotice);
+                        allTurnMessages.push(finishedNotice);
+                      }
+                    }
+                  }
+                  // 红包动作不添加到历史记录，继续处理下一条
+                  continue;
+                }
+
+                // 处理投票动作
+                if (msg.type === 'vote' && msg.poll_timestamp && msg.choice) {
+                  const targetTimestamp = Number(msg.poll_timestamp);
+                  const pollToVote = chat.history.find(m => m.type === 'poll' && Number(m.timestamp) === targetTimestamp);
+
+                  if (pollToVote && !pollToVote.isClosed) {
+                    const voterName = msg.senderName;
+
+                    // 确保 votes 对象存在
+                    if (!pollToVote.votes) pollToVote.votes = {};
+
+                    // 检查是否已经投过票
+                    let alreadyVoted = false;
+                    Object.values(pollToVote.votes).forEach(voters => {
+                      if (voters.includes(voterName)) alreadyVoted = true;
+                    });
+
+                    if (!alreadyVoted) {
+                      // 将投票添加到选择的选项
+                      const chosenOption = msg.choice;
+                      if (!pollToVote.votes[chosenOption]) {
+                        pollToVote.votes[chosenOption] = [];
+                      }
+                      pollToVote.votes[chosenOption].push(voterName);
+
+                      console.log(`[真群聊] ${voterName} 投票给了 "${chosenOption}"`);
+                    }
+                  }
+                  // 投票动作不添加到历史记录，继续处理下一条
+                  continue;
+                }
+
+                // 普通消息：添加到历史和本轮消息
                 chat.history.push(msg);
+                allTurnMessages.push(msg);
               }
 
             } catch (error) {
@@ -55817,7 +56165,10 @@ ${chat.history
               if (newStickers.length > 0) {
                 await db.userStickers.bulkAdd(newStickers);
                 state.userStickers.push(...newStickers);
+                // 切换到"未分类"视图，确保用户能看到新上传的表情
+                activeStickerCategoryId = "uncategorized";
                 renderStickerPanel();
+                renderStickerCategoryTabs();
                 await showCustomAlert(
                   "上传成功",
                   `已成功添加 ${newStickers.length} 个新表情！`
