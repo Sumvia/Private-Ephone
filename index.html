@@ -68,6 +68,7 @@
     <script src="weibo.js" defer></script>
     <script src="date.js" defer></script>
     <script src="studio.js" defer></script>
+    <script src="toy-control.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/darkreader@4.9.84/darkreader.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -580,6 +581,18 @@
             </div>
             <!-- lrq小剧场 -->
             <span class="label">lrq小剧场</span>
+          </div>
+
+          <div class="desktop-app-icon" id="toy-control-app-icon">
+            <div class="icon-bg-desktop" style="background: white;">
+              <img
+                id="icon-img-toy-control"
+                src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='80'%3E❤️%3C/text%3E%3C/svg%3E"
+                alt="玩具控制"
+                style="width: 60%; height: 60%;"
+              />
+            </div>
+            <span class="label">Toy Control</span>
           </div>
 
           <div
@@ -13948,6 +13961,574 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
       </div>
     </div>
 
+    <!-- ============================================ -->
+    <!-- Toy Control 玩具控制功能 -->
+    <!-- ============================================ -->
+
+    <!-- 1. 玩具控制主屏幕 - 角色选择 -->
+    <div id="toy-control-screen" class="screen">
+      <div class="header">
+        <span class="back-btn" id="back-from-toy-control">‹</span>
+        <span>Toy Control</span>
+        <span style="width: 30px"></span>
+      </div>
+      <div class="toy-control-setup">
+        <div class="toy-setup-icon">❤️</div>
+        <h2 class="toy-setup-title">远程玩具控制</h2>
+
+        <div class="form-group" style="margin: 20px 0; width: 100%; max-width: 300px;">
+          <label for="toy-character-select">选择控制者</label>
+          <select id="toy-character-select">
+            <option value="">-- 选择角色 --</option>
+          </select>
+        </div>
+
+        <button id="toy-start-session-btn" class="toy-start-btn">
+          开始会话
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. 玩具控制会话屏幕 - 上下分框布局 -->
+    <div id="toy-session-screen" class="screen">
+      <div class="header">
+        <span class="back-btn" id="toy-back-btn">‹</span>
+        <span id="toy-session-title">Toy Control</span>
+        <div class="header-actions">
+          <span class="action-btn" id="toy-settings-btn">⚙️</span>
+        </div>
+      </div>
+
+      <!-- 上方：控制面板 -->
+      <div class="toy-control-panel">
+        <!-- 强度显示 -->
+        <div class="toy-stat-card toy-intensity-card">
+          <div class="toy-stat-label">震动强度</div>
+          <div class="toy-stat-value">
+            <span id="toy-intensity-value">0</span>
+            <span class="toy-stat-unit">/100</span>
+          </div>
+          <div class="toy-intensity-bar-container">
+            <div class="toy-intensity-bar" id="toy-intensity-bar" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- 模式和温度 -->
+        <div class="toy-stat-row">
+          <div class="toy-stat-card toy-mode-card">
+            <div class="toy-stat-label">当前模式</div>
+            <div class="toy-stat-value" id="toy-mode-display">关闭</div>
+            <div class="toy-stat-desc" id="toy-mode-description">设备已关闭</div>
+          </div>
+          <div class="toy-stat-card toy-temp-card">
+            <div class="toy-stat-label">设备温度</div>
+            <div class="toy-stat-value">
+              <span id="toy-temperature-value">36.5°C</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 状态文案 -->
+        <div class="toy-status-card">
+          <span class="toy-status-level" id="toy-status-level">休眠</span>
+          <span class="toy-status-text" id="toy-status-text">设备处于待机状态，等待主人的指令~</span>
+        </div>
+      </div>
+
+      <!-- 下方：聊天区域 -->
+      <div class="toy-chat-area">
+        <div id="toy-chat-messages" class="toy-chat-messages">
+          <!-- 聊天消息将由JS动态生成 -->
+        </div>
+        <div class="toy-chat-input-area">
+          <textarea
+            id="toy-chat-input"
+            rows="1"
+            placeholder="说点什么..."
+          ></textarea>
+          <button id="toy-request-ai-btn" class="toy-request-btn-small" title="请求AI回复">↑</button>
+          <button id="toy-send-btn" class="toy-send-btn">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Toy Control 设置弹窗 -->
+    <div id="toy-settings-modal" class="modal">
+      <div class="modal-content" style="height: auto; max-height: 80%;">
+        <div class="modal-header">
+          <span>会话设置</span>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>上下文记忆条数</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" id="toy-memory-slider" min="5" max="50" value="20" style="flex: 1;">
+              <span id="toy-memory-value">20</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">
+              AI每次回复时参考的历史消息条数
+            </p>
+          </div>
+
+          <div class="form-group" style="margin-top: 20px;">
+            <label>记忆总结管理</label>
+            <p style="font-size: 12px; color: var(--text-secondary); margin: 5px 0 10px 0;">
+              记忆总结会作为长期记忆，帮助AI保持互动的连贯性
+            </p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="toy-view-summaries-btn" class="form-button form-button-secondary" style="flex: 1;">
+                📝 查看/管理总结
+              </button>
+              <button id="toy-summary-btn" class="form-button form-button-secondary" style="flex: 1;">
+                ✨ 生成新总结
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 20px;">
+            <label>聊天记录管理</label>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+              <button id="toy-clear-history-btn" class="form-button form-button-secondary" style="flex: 1; color: #f44336;">
+                🗑️ 清空聊天记录
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel" id="toy-settings-close-btn">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Toy Control 消息操作弹窗 -->
+    <div id="toy-message-actions-modal" class="modal">
+      <div id="custom-modal" style="width: 250px">
+        <div class="custom-modal-footer">
+          <button id="toy-edit-message-btn">编辑消息</button>
+          <button id="toy-copy-message-btn">复制文本</button>
+          <button id="toy-delete-message-btn">删除</button>
+          <button id="toy-delete-after-btn">删除此条及之后</button>
+          <button id="toy-regenerate-btn" style="display: none;">重新生成</button>
+          <button id="toy-cancel-action-btn" style="margin-top: 8px; border-radius: 8px; background-color: #f0f0f0;">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Toy Control 消息编辑弹窗 -->
+    <div id="toy-message-editor-modal" class="modal">
+      <div class="modal-content" style="width: 90%; max-width: 400px;">
+        <div class="modal-header">编辑消息</div>
+        <div class="modal-body">
+          <textarea id="toy-message-editor-textarea" rows="5" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; resize: vertical;"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="cancel" id="toy-editor-cancel-btn">取消</button>
+          <button class="save" id="toy-editor-save-btn">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Toy Control 记忆总结管理器 -->
+    <div id="toy-summary-manager-modal" class="modal">
+      <div class="modal-content" style="width: 95%; max-width: 500px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📝 记忆总结管理</span>
+          <button id="toy-summary-close-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary);">×</button>
+        </div>
+        <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 15px;">
+          <div id="toy-summary-list">
+            <!-- 总结列表将由JS动态生成 -->
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button id="toy-summary-generate-btn" class="form-button" style="flex: 1;">
+            ✨ 生成新总结
+          </button>
+          <button id="toy-summary-clear-all-btn" class="form-button form-button-secondary" style="flex: 1; color: #f44336;">
+            🗑️ 清空全部
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toy Control CSS -->
+    <style>
+      /* CSS变量定义 - 默认浅色模式 */
+      #toy-control-screen,
+      #toy-session-screen {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --bg-tertiary: #e8e8e8;
+        --text-primary: #1f1f1f;
+        --text-secondary: #8a8a8a;
+        --border-color: #e0e0e0;
+      }
+      /* 深色模式支持 */
+      #phone-screen.dark-mode #toy-control-screen,
+      #phone-screen.dark-mode #toy-session-screen {
+        --bg-primary: #1c1c1e;
+        --bg-secondary: #2c2c2e;
+        --bg-tertiary: #3a3a3c;
+        --text-primary: #ffffff;
+        --text-secondary: #8e8e93;
+        --border-color: #3a3a3c;
+      }
+
+      /* 主屏幕设置 */
+      .toy-control-setup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        text-align: center;
+      }
+      .toy-setup-icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+      }
+      .toy-setup-title {
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--text-primary);
+        margin: 0 0 10px 0;
+      }
+      .toy-start-btn {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+        color: white;
+        border: none;
+        padding: 15px 40px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-top: 20px;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .toy-start-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 20px rgba(238, 90, 90, 0.4);
+      }
+
+      /* 会话屏幕布局 */
+      #toy-session-screen {
+        display: flex;
+        flex-direction: column;
+      }
+      #toy-session-screen.active {
+        display: flex;
+      }
+
+      /* 控制面板 */
+      .toy-control-panel {
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+      }
+      .toy-stat-card {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 12px 15px;
+        margin-bottom: 10px;
+      }
+      .toy-stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 5px;
+      }
+      .toy-stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: var(--text-primary);
+      }
+      .toy-stat-unit {
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+      .toy-stat-desc {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 5px;
+      }
+      .toy-stat-row {
+        display: flex;
+        gap: 10px;
+      }
+      .toy-stat-row .toy-stat-card {
+        flex: 1;
+      }
+      .toy-mode-card .toy-stat-value {
+        font-size: 20px;
+      }
+      .toy-temp-card .toy-stat-value {
+        font-size: 20px;
+        color: #ff6b6b;
+      }
+
+      /* 强度条 */
+      .toy-intensity-bar-container {
+        height: 8px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      .toy-intensity-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #4caf50, #ff9800, #f44336);
+        border-radius: 4px;
+        transition: width 0.5s ease, background-color 0.3s;
+      }
+
+      /* 状态文案 */
+      .toy-status-card {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 12px 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .toy-status-level {
+        font-weight: bold;
+        font-size: 14px;
+        padding: 4px 10px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+      }
+      .toy-status-text {
+        font-size: 13px;
+        color: var(--text-secondary);
+        flex: 1;
+      }
+
+      /* 聊天区域 */
+      .toy-chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .toy-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .toy-message {
+        max-width: 85%;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .toy-message.user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+      }
+      .toy-message.assistant {
+        align-self: flex-start;
+      }
+      .toy-message-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: var(--bg-secondary);
+        background-size: cover;
+        background-position: center;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+      .toy-message-bubble-container {
+        display: flex;
+        flex-direction: column;
+        max-width: calc(100% - 44px);
+      }
+      .toy-message.user .toy-message-bubble-container {
+        align-items: flex-end;
+      }
+      .toy-message-name {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-bottom: 3px;
+        padding: 0 4px;
+      }
+      .toy-message-content {
+        padding: 10px 14px;
+        border-radius: 18px;
+        font-size: 14px;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+      .toy-message.user .toy-message-content {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+        color: white;
+        border-bottom-right-radius: 4px;
+      }
+      .toy-message.assistant .toy-message-content {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-bottom-left-radius: 4px;
+      }
+      .toy-message.loading .toy-message-content {
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      /* 输入区域 */
+      .toy-chat-input-area {
+        display: flex;
+        gap: 8px;
+        padding: 10px 15px;
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border-color);
+        flex-shrink: 0;
+        align-items: center;
+      }
+      .toy-chat-input-area textarea {
+        flex: 1;
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        padding: 10px 15px;
+        font-size: 14px;
+        resize: none;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        outline: none;
+      }
+      .toy-chat-input-area textarea:focus {
+        border-color: #ff6b6b;
+      }
+      .toy-send-btn {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        font-size: 14px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .toy-request-btn-small {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        font-size: 14px;
+        transition: background 0.2s;
+      }
+      .toy-request-btn-small:hover {
+        background: var(--bg-tertiary);
+      }
+      .toy-request-btn-small:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* 上下文菜单 */
+      .toy-context-menu {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        overflow: hidden;
+        min-width: 120px;
+      }
+      .toy-context-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        font-size: 14px;
+        color: var(--text-primary);
+        transition: background 0.2s;
+      }
+      .toy-context-item:hover {
+        background: var(--bg-secondary);
+      }
+      .toy-context-item:active {
+        background: var(--border-color);
+      }
+
+      /* 记忆总结管理器样式 */
+      #toy-summary-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .toy-summary-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 14px;
+        border: 1px solid var(--border-color);
+        position: relative;
+      }
+      .toy-summary-card:hover {
+        border-color: #ff6b6b;
+      }
+      .toy-summary-content {
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--text-primary);
+        padding-right: 60px;
+      }
+      .toy-summary-meta {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .toy-summary-actions {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: flex;
+        gap: 6px;
+      }
+      .toy-summary-actions button {
+        background: var(--bg-tertiary);
+        border: none;
+        border-radius: 6px;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, transform 0.1s;
+      }
+      .toy-summary-actions button:hover {
+        background: var(--border-color);
+        transform: scale(1.1);
+      }
+      .toy-summary-edit-btn:hover {
+        background: #4a90d9 !important;
+      }
+      .toy-summary-delete-btn:hover {
+        background: #e74c3c !important;
+      }
+    </style>
+
     <div id="account-editor-modal" class="modal">
       <div class="modal-content" style="height: auto; max-height: 85%">
         <div class="modal-header">
@@ -16667,6 +17248,75 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
 			.memory-card .content {
 			  color: #5d4037 !important; /* 内容文字颜色 */
 			}
+
+
+			/* === 8. Toy Control 玩具控制美化 === */
+			/* 主界面和会话界面的背景色 */
+			#toy-control-screen,
+			#toy-session-screen {
+			  --toy-bg-primary: #ffffff;       /* 主背景色 */
+			  --toy-bg-secondary: #f5f5f5;     /* 次要背景色 */
+			  --toy-accent-color: #ff6b6b;     /* 主题强调色（粉红色） */
+			  --toy-text-primary: #1f1f1f;     /* 主要文字颜色 */
+			  --toy-text-secondary: #8a8a8a;   /* 次要文字颜色 */
+			}
+
+			/* 控制面板卡片 */
+			.toy-control-panel {
+			  background: linear-gradient(145deg, #fff0f0, #ffe0e0) !important; /* 渐变背景 */
+			  border-radius: 16px !important;
+			  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.15) !important;
+			}
+
+			/* 强度进度条 */
+			.toy-intensity-bar {
+			  background: linear-gradient(90deg, #ff6b6b, #ff8e8e, #ff6b6b) !important;
+			  background-size: 200% 100% !important;
+			  animation: toyPulse 2s ease-in-out infinite !important;
+			}
+			@keyframes toyPulse {
+			  0%, 100% { background-position: 0% 50%; }
+			  50% { background-position: 100% 50%; }
+			}
+
+			/* 用户消息气泡 */
+			.toy-message.user .toy-message-content {
+			  background: linear-gradient(135deg, #ff6b6b, #ee5a5a) !important;
+			  color: white !important;
+			  border-radius: 18px 18px 4px 18px !important;
+			}
+
+			/* AI消息气泡 */
+			.toy-message.assistant .toy-message-content {
+			  background: linear-gradient(135deg, #f8f8f8, #f0f0f0) !important;
+			  border: 1px solid rgba(255, 107, 107, 0.2) !important;
+			  border-radius: 18px 18px 18px 4px !important;
+			}
+
+			/* 头像边框装饰 */
+			.toy-message-avatar {
+			  border: 2px solid rgba(255, 107, 107, 0.3) !important;
+			  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.2) !important;
+			}
+
+			/* 发送按钮 */
+			.toy-send-btn {
+			  background: linear-gradient(135deg, #ff6b6b, #ff5252) !important;
+			  box-shadow: 0 3px 10px rgba(255, 107, 107, 0.4) !important;
+			}
+			.toy-send-btn:hover {
+			  transform: translateY(-1px) !important;
+			  box-shadow: 0 5px 15px rgba(255, 107, 107, 0.5) !important;
+			}
+
+			/* 记忆总结卡片 */
+			.toy-summary-card {
+			  background: linear-gradient(145deg, #fff5f5, #ffecec) !important;
+			  border-left: 3px solid #ff6b6b !important;
+			}
+			.toy-summary-card:hover {
+			  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2) !important;
+			}
 			`;
 
         const DEFAULT_APP_ICONS = {
@@ -16686,6 +17336,7 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
           "tukey-accounting": "https://i.postimg.cc/k4fZKVXP/tu-tu.png",
           "kk-checkin": "https://i.postimg.cc/MGwrL0nf/kitty.png",
           studio: "https://i.postimg.cc/W3sLz11s/clapperboard-icon.png",
+          "toy-control": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='white' width='100' height='100' rx='20'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle'%3E❤️%3C/text%3E%3C/svg%3E",
         };
 
         const DEFAULT_APP_LABELS = {
@@ -16705,6 +17356,7 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
           "tukey-accounting": "兔兔记账",
           "kk-checkin": "kk查岗",
           studio: "lrq小剧场",
+          "toy-control": "Toy Control",
         };
 
         const STICKER_REGEX =
@@ -37273,6 +37925,7 @@ ${chat.history
             "tukey-accounting": "兔兔记账",
             "kk-checkin": "kk查岗",
             studio: "lrq小剧场",
+            "toy-control": "Toy Control",
           };
 
           for (const iconId in state.globalSettings.appIcons) {
