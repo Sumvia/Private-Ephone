@@ -14102,6 +14102,7 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
         <span class="back-btn" id="toy-back-btn">‹</span>
         <span id="toy-session-title">Toy Control</span>
         <div class="header-actions">
+          <span class="action-btn" id="toy-inner-voice-btn" title="查看心声">💭</span>
           <span class="action-btn" id="toy-settings-btn">⚙️</span>
         </div>
       </div>
@@ -14254,6 +14255,75 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
           <button id="toy-summary-clear-all-btn" class="form-button form-button-secondary" style="flex: 1; color: #f44336;">
             🗑️ 清空全部
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Toy Control 心声面板 -->
+    <div id="toy-inner-voice-modal" class="modal">
+      <!-- 心声主面板 -->
+      <div id="toy-inner-voice-main-panel" class="modal-content toy-inner-voice-panel">
+        <div class="toy-inner-voice-header">
+          <span id="toy-close-inner-voice-modal" class="toy-inner-voice-close">×</span>
+          <span class="toy-inner-voice-title">心声</span>
+          <span id="toy-inner-voice-history-btn" class="toy-inner-voice-history-icon" title="历史记录">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </span>
+        </div>
+        <div class="toy-inner-voice-body">
+          <!-- 角色信息 -->
+          <div class="toy-inner-voice-char-info">
+            <div class="toy-inner-voice-avatar-wrapper">
+              <img id="toy-inner-voice-avatar" src="" alt="角色头像" />
+            </div>
+            <div id="toy-inner-voice-char-name" class="toy-inner-voice-char-name"></div>
+          </div>
+          <!-- 心声内容 -->
+          <div class="toy-inner-voice-content">
+            <div class="toy-inner-voice-item">
+              <strong class="toy-inner-voice-label clothing">服装:</strong>
+              <p id="toy-inner-voice-clothing" class="toy-inner-voice-text"></p>
+            </div>
+            <div class="toy-inner-voice-item">
+              <strong class="toy-inner-voice-label behavior">行为:</strong>
+              <p id="toy-inner-voice-behavior" class="toy-inner-voice-text"></p>
+            </div>
+            <div class="toy-inner-voice-item">
+              <strong class="toy-inner-voice-label thoughts">心声:</strong>
+              <p id="toy-inner-voice-thoughts" class="toy-inner-voice-text"></p>
+            </div>
+            <div class="toy-inner-voice-item">
+              <strong class="toy-inner-voice-label naughty">坏心思:</strong>
+              <p id="toy-inner-voice-naughty-thoughts" class="toy-inner-voice-text"></p>
+            </div>
+          </div>
+          <!-- 无数据提示 -->
+          <div id="toy-inner-voice-empty" class="toy-inner-voice-empty" style="display: none;">
+            <div class="toy-inner-voice-empty-icon">💭</div>
+            <div class="toy-inner-voice-empty-text">还没有心声数据</div>
+            <div class="toy-inner-voice-empty-hint">继续和角色互动，AI会自动生成心声~</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史记录面板 -->
+      <div id="toy-inner-voice-history-panel" class="modal-content toy-inner-voice-panel" style="display: none;">
+        <div class="toy-inner-voice-header">
+          <span id="toy-back-from-history-btn" class="toy-inner-voice-back">返回</span>
+          <span class="toy-inner-voice-title">历史心声</span>
+          <span id="toy-clear-all-inner-voice-btn" class="toy-inner-voice-clear-all">全部清空</span>
+        </div>
+        <div class="toy-inner-voice-body toy-inner-voice-history-body">
+          <div id="toy-inner-voice-history-list" class="toy-inner-voice-history-list">
+            <!-- 历史记录由JS动态生成 -->
+          </div>
+          <div id="toy-inner-voice-history-empty" class="toy-inner-voice-empty" style="display: none;">
+            <div class="toy-inner-voice-empty-icon">📜</div>
+            <div class="toy-inner-voice-empty-text">暂无历史记录</div>
+          </div>
         </div>
       </div>
     </div>
@@ -14633,6 +14703,219 @@ lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer
       }
       .toy-summary-delete-btn:hover {
         background: #e74c3c !important;
+      }
+
+      /* Toy Control 心声面板样式 */
+      .toy-inner-voice-panel {
+        width: 90%;
+        max-width: 340px;
+        height: auto;
+        max-height: 80%;
+        background-color: #fffafb;
+        border: 1px solid #ffe4e1;
+        display: flex;
+        flex-direction: column;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-panel {
+        background-color: #2c2c2e;
+        border-color: #3a3a3c;
+      }
+      .toy-inner-voice-header {
+        border-bottom: 1px solid #ffe4e1;
+        padding: 12px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-header {
+        border-bottom-color: #3a3a3c;
+      }
+      .toy-inner-voice-title {
+        font-weight: 600;
+        font-size: 16px;
+        color: #333;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-title {
+        color: #fff;
+      }
+      .toy-inner-voice-close {
+        cursor: pointer;
+        font-size: 24px;
+        color: #666;
+        line-height: 1;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-close {
+        color: #aaa;
+      }
+      .toy-inner-voice-history-icon {
+        cursor: pointer;
+        color: #666;
+        display: flex;
+        align-items: center;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-history-icon {
+        color: #aaa;
+      }
+      .toy-inner-voice-history-icon:hover {
+        color: #ff6b6b;
+      }
+      .toy-inner-voice-back {
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        color: #ff6b6b;
+      }
+      .toy-inner-voice-clear-all {
+        cursor: pointer;
+        font-size: 14px;
+        color: #ff3b30;
+      }
+      .toy-inner-voice-body {
+        padding: 15px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .toy-inner-voice-char-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+      .toy-inner-voice-avatar-wrapper {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 2px solid #ffe4e1;
+        margin-bottom: 8px;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-avatar-wrapper {
+        border-color: #3a3a3c;
+      }
+      .toy-inner-voice-avatar-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .toy-inner-voice-char-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-char-name {
+        color: #fff;
+      }
+      .toy-inner-voice-content {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .toy-inner-voice-item {
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        padding: 10px 12px;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-item {
+        background: rgba(60, 60, 62, 0.5);
+      }
+      .toy-inner-voice-label {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .toy-inner-voice-label.clothing { color: #e57373; }
+      .toy-inner-voice-label.behavior { color: #81c784; }
+      .toy-inner-voice-label.thoughts { color: #64b5f6; }
+      .toy-inner-voice-label.naughty { color: #ba68c8; }
+      .toy-inner-voice-text {
+        margin: 5px 0 0 0;
+        line-height: 1.6;
+        color: #555;
+        font-size: 14px;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-text {
+        color: #ccc;
+      }
+      .toy-inner-voice-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        text-align: center;
+      }
+      .toy-inner-voice-empty-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+        opacity: 0.6;
+      }
+      .toy-inner-voice-empty-text {
+        font-size: 16px;
+        color: #666;
+        margin-bottom: 8px;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-empty-text {
+        color: #aaa;
+      }
+      .toy-inner-voice-empty-hint {
+        font-size: 13px;
+        color: #999;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-empty-hint {
+        color: #777;
+      }
+      .toy-inner-voice-history-body {
+        padding: 0;
+      }
+      .toy-inner-voice-history-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .toy-inner-voice-history-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid #ffe4e1;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-history-item {
+        border-bottom-color: #3a3a3c;
+      }
+      .toy-inner-voice-history-item:hover {
+        background: rgba(255, 107, 107, 0.1);
+      }
+      .toy-inner-voice-history-item:last-child {
+        border-bottom: none;
+      }
+      .toy-inner-voice-history-time {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 6px;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-history-time {
+        color: #777;
+      }
+      .toy-inner-voice-history-preview {
+        font-size: 13px;
+        color: #555;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      #phone-screen.dark-mode .toy-inner-voice-history-preview {
+        color: #ccc;
+      }
+      .toy-inner-voice-history-delete {
+        float: right;
+        color: #ff3b30;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 59, 48, 0.1);
+      }
+      .toy-inner-voice-history-delete:hover {
+        background: rgba(255, 59, 48, 0.2);
       }
     </style>
 

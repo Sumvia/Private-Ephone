@@ -90,6 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
         id: historyKey,
         history: activeToySession.history,
         toyState: toyState,
+        latestInnerVoice: activeToySession.latestInnerVoice || null,
+        innerVoiceHistory: activeToySession.innerVoiceHistory || [],
         lastUpdated: Date.now()
       });
     } catch (e) {
@@ -102,13 +104,17 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const historyKey = `toy-history-${chatId}`;
       const saved = await db.globalSettings.get(historyKey);
-      if (saved && saved.history) {
-        return saved.history;
+      if (saved) {
+        return {
+          history: saved.history || [],
+          latestInnerVoice: saved.latestInnerVoice || null,
+          innerVoiceHistory: saved.innerVoiceHistory || []
+        };
       }
     } catch (e) {
       console.warn('加载玩具历史失败:', e);
     }
-    return [];
+    return { history: [], latestInnerVoice: null, innerVoiceHistory: [] };
   }
 
   // ===================================================================
@@ -252,8 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const characterName = chat.name || '角色';
     const characterAvatar = chat.settings?.aiAvatar || ''; // 角色头像
 
-    // 加载历史记录
-    const savedHistory = await loadToyHistory(selectedId);
+    // 加载历史记录（包含心声数据）
+    const savedData = await loadToyHistory(selectedId);
 
     // 加载记忆总结
     const savedSummaries = await loadToyMemorySummaries(selectedId);
@@ -264,8 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
       characterPersona: chat.settings?.aiPersona || '', // 角色人设存储在 aiPersona
       characterAvatar: characterAvatar, // 角色头像
       userAvatar: chat.settings?.myAvatar || '', // 用户头像
-      history: savedHistory,
-      summaries: savedSummaries // 记忆总结数组
+      history: savedData.history,
+      summaries: savedSummaries, // 记忆总结数组
+      latestInnerVoice: savedData.latestInnerVoice, // 最新心声
+      innerVoiceHistory: savedData.innerVoiceHistory // 心声历史
     };
 
     // 更新标题
@@ -571,6 +579,21 @@ document.addEventListener('DOMContentLoaded', () => {
         updateControlPanel();
       }
 
+      // 处理心声数据
+      if (parsed.innerVoice) {
+        const newInnerVoice = {
+          ...parsed.innerVoice,
+          timestamp: Date.now()
+        };
+        activeToySession.latestInnerVoice = newInnerVoice;
+        if (!activeToySession.innerVoiceHistory) {
+          activeToySession.innerVoiceHistory = [];
+        }
+        activeToySession.innerVoiceHistory.push(newInnerVoice);
+        // 更新心声面板（如果已打开）
+        renderToyInnerVoice();
+      }
+
       // 显示文字消息
       if (parsed.message) {
         const assistantMsg = {
@@ -710,21 +733,33 @@ ${continuationHint}
   "toy_control": {
     "intensity": 数字0-100（可选，不改变则不写）,
     "mode": "模式名"（可选，不改变则不写）
+  },
+  "inner_voice": {
+    "clothing": "描述你当前的穿着打扮",
+    "behavior": "描述你当前的动作和神态",
+    "thoughts": "你此刻的真实内心想法",
+    "naughtyThoughts": "你隐藏的小心思或欲望"
   }
 }
 \`\`\`
 
+# inner_voice 说明（重要！每次回复都必须包含）
+inner_voice是你的内心独白，用户可以通过心声面板偷窥你的真实想法：
+- clothing: 简洁描述你现在穿什么，比如"白色衬衫搭配黑色短裙"
+- behavior: 描述你的动作和表情，比如"手指轻点遥控器，嘴角微微上扬"
+- thoughts: 你真正在想什么，可以和说出来的话不一样
+- naughtyThoughts: 你不会说出口的隐秘想法或小心思
+
 优秀示例（注意回复的丰富程度）：
-{"message": "*手指轻轻拨动遥控器上的旋钮，嘴角勾起一抹玩味的笑* 嗯？刚才是不是抖了一下？让我看看你能忍到什么程度~ *眼睛紧盯着你，不放过任何细微的表情变化* 放心，我会慢慢来的...也许吧。", "toy_control": {"intensity": 35, "mode": "wave"}}
-{"message": "*看着你努力维持平静的样子，忍不住轻笑出声* 表情管理得不错嘛，但是你的耳朵红了哦~ *故意凑近你耳边低语* 要不要...再加一点？ *手指悬在遥控器上方，似乎在等待你的反应*"}
-{"message": "*突然把强度调到最低，看着你松一口气的样子* 累了吧？休息一下~ *温柔地笑着* 不过别太放松哦，谁知道我什么时候会突然... *话说一半故意停住，留下悬念*", "toy_control": {"intensity": 5, "mode": "tease"}}
+{"message": "*手指轻轻拨动遥控器上的旋钮，嘴角勾起一抹玩味的笑* 嗯？刚才是不是抖了一下？让我看看你能忍到什么程度~ *眼睛紧盯着你，不放过任何细微的表情变化* 放心，我会慢慢来的...也许吧。", "toy_control": {"intensity": 35, "mode": "wave"}, "inner_voice": {"clothing": "粉色睡裙，头发随意扎起", "behavior": "歪着头盯着手机屏幕，手指在遥控器上来回滑动", "thoughts": "看起来已经开始有反应了呢，真可爱", "naughtyThoughts": "好想看你忍不住的样子..."}}
+{"message": "*看着你努力维持平静的样子，忍不住轻笑出声* 表情管理得不错嘛，但是你的耳朵红了哦~ *故意凑近你耳边低语* 要不要...再加一点？ *手指悬在遥控器上方，似乎在等待你的反应*", "inner_voice": {"clothing": "宽松的T恤，慵懒地窝在沙发里", "behavior": "把手机举到眼前，仔细观察你的反应", "thoughts": "嘴上说不要，身体却很诚实呢", "naughtyThoughts": "再逗逗你，看你能撑多久~"}}
 
 直接输出JSON，不要有其他内容：`;
   }
 
   // 解析AI响应
   function parseToyResponse(responseText) {
-    let result = { message: '', toyControl: null };
+    let result = { message: '', toyControl: null, innerVoice: null };
 
     try {
       // 清理markdown代码块
@@ -733,44 +768,46 @@ ${continuationHint}
         .replace(/```\s*/gi, '')
         .trim();
 
-      // 尝试提取完整的JSON对象（使用非贪婪匹配找到第一个完整的JSON）
-      // 先尝试匹配带有 "message" 字段的JSON结构
-      let jsonMatch = null;
-
-      // 方法1: 尝试找到包含 "message" 的JSON
-      const messageJsonMatch = cleaned.match(/\{[^{}]*"message"\s*:\s*"[^"]*"[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/);
-      if (messageJsonMatch) {
-        jsonMatch = messageJsonMatch;
-      } else {
-        // 方法2: 使用括号平衡来找到第一个完整的JSON对象
-        const startIdx = cleaned.indexOf('{');
-        if (startIdx !== -1) {
-          let depth = 0;
-          let endIdx = -1;
-          for (let i = startIdx; i < cleaned.length; i++) {
-            if (cleaned[i] === '{') depth++;
-            else if (cleaned[i] === '}') {
-              depth--;
-              if (depth === 0) {
-                endIdx = i;
-                break;
-              }
+      // 使用括号平衡来找到第一个完整的JSON对象
+      const startIdx = cleaned.indexOf('{');
+      if (startIdx !== -1) {
+        let depth = 0;
+        let endIdx = -1;
+        for (let i = startIdx; i < cleaned.length; i++) {
+          if (cleaned[i] === '{') depth++;
+          else if (cleaned[i] === '}') {
+            depth--;
+            if (depth === 0) {
+              endIdx = i;
+              break;
             }
           }
-          if (endIdx !== -1) {
-            jsonMatch = [cleaned.substring(startIdx, endIdx + 1)];
-          }
         }
-      }
+        if (endIdx !== -1) {
+          const jsonStr = cleaned.substring(startIdx, endIdx + 1);
+          const parsed = JSON.parse(jsonStr);
+          result.message = parsed.message || '';
 
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        result.message = parsed.message || '';
-        if (parsed.toy_control) {
-          result.toyControl = {
-            intensity: parsed.toy_control.intensity,
-            mode: parsed.toy_control.mode
-          };
+          // 解析 toy_control
+          if (parsed.toy_control) {
+            result.toyControl = {
+              intensity: parsed.toy_control.intensity,
+              mode: parsed.toy_control.mode
+            };
+          }
+
+          // 解析 inner_voice
+          if (parsed.inner_voice) {
+            result.innerVoice = {
+              clothing: parsed.inner_voice.clothing || '',
+              behavior: parsed.inner_voice.behavior || '',
+              thoughts: parsed.inner_voice.thoughts || '',
+              naughtyThoughts: parsed.inner_voice.naughtyThoughts || ''
+            };
+          }
+        } else {
+          // 如果没有找到完整JSON，直接作为消息
+          result.message = cleaned;
         }
       } else {
         // 如果没有JSON，直接作为消息
@@ -784,6 +821,7 @@ ${continuationHint}
         .replace(/```\s*/gi, '')
         .replace(/"message"\s*:\s*"/gi, '')
         .replace(/",?\s*"toy_control"\s*:\s*\{[\s\S]*?\}/gi, '')
+        .replace(/",?\s*"inner_voice"\s*:\s*\{[\s\S]*?\}/gi, '')
         .replace(/[{}"]/g, '')
         .replace(/^\s*,?\s*/, '')
         .trim();
@@ -1012,6 +1050,188 @@ ${continuationHint}
   }
 
   // ===================================================================
+  // 心声面板管理
+  // ===================================================================
+
+  // 打开心声面板
+  function openToyInnerVoiceModal() {
+    const modal = document.getElementById('toy-inner-voice-modal');
+    const mainPanel = document.getElementById('toy-inner-voice-main-panel');
+    const historyPanel = document.getElementById('toy-inner-voice-history-panel');
+
+    if (!modal) return;
+
+    // 确保显示主面板，隐藏历史面板
+    if (mainPanel) mainPanel.style.display = 'flex';
+    if (historyPanel) historyPanel.style.display = 'none';
+
+    // 渲染心声内容
+    renderToyInnerVoice();
+
+    modal.classList.add('visible');
+  }
+
+  // 关闭心声面板
+  function closeToyInnerVoiceModal() {
+    const modal = document.getElementById('toy-inner-voice-modal');
+    if (modal) {
+      modal.classList.remove('visible');
+    }
+  }
+
+  // 渲染当前心声内容
+  function renderToyInnerVoice() {
+    const avatarEl = document.getElementById('toy-inner-voice-avatar');
+    const nameEl = document.getElementById('toy-inner-voice-char-name');
+    const clothingEl = document.getElementById('toy-inner-voice-clothing');
+    const behaviorEl = document.getElementById('toy-inner-voice-behavior');
+    const thoughtsEl = document.getElementById('toy-inner-voice-thoughts');
+    const naughtyEl = document.getElementById('toy-inner-voice-naughty-thoughts');
+    const contentArea = document.querySelector('.toy-inner-voice-content');
+    const emptyEl = document.getElementById('toy-inner-voice-empty');
+
+    // 设置角色信息
+    if (avatarEl && activeToySession?.characterAvatar) {
+      avatarEl.src = activeToySession.characterAvatar;
+    }
+    if (nameEl) {
+      nameEl.textContent = activeToySession?.characterName || '角色';
+    }
+
+    const innerVoice = activeToySession?.latestInnerVoice;
+
+    if (innerVoice && (innerVoice.clothing || innerVoice.behavior || innerVoice.thoughts || innerVoice.naughtyThoughts)) {
+      // 有心声数据，显示内容区域
+      if (contentArea) contentArea.style.display = 'flex';
+      if (emptyEl) emptyEl.style.display = 'none';
+
+      if (clothingEl) clothingEl.textContent = innerVoice.clothing || '暂无';
+      if (behaviorEl) behaviorEl.textContent = innerVoice.behavior || '暂无';
+      if (thoughtsEl) thoughtsEl.textContent = innerVoice.thoughts || '暂无';
+      if (naughtyEl) naughtyEl.textContent = innerVoice.naughtyThoughts || '暂无';
+    } else {
+      // 无心声数据，显示空状态
+      if (contentArea) contentArea.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'flex';
+    }
+  }
+
+  // 切换到历史记录面板
+  function toggleToyInnerVoiceHistory() {
+    const mainPanel = document.getElementById('toy-inner-voice-main-panel');
+    const historyPanel = document.getElementById('toy-inner-voice-history-panel');
+
+    if (mainPanel) mainPanel.style.display = 'none';
+    if (historyPanel) historyPanel.style.display = 'flex';
+
+    renderToyInnerVoiceHistory();
+  }
+
+  // 从历史记录面板返回
+  function backFromToyInnerVoiceHistory() {
+    const mainPanel = document.getElementById('toy-inner-voice-main-panel');
+    const historyPanel = document.getElementById('toy-inner-voice-history-panel');
+
+    if (mainPanel) mainPanel.style.display = 'flex';
+    if (historyPanel) historyPanel.style.display = 'none';
+  }
+
+  // 渲染心声历史列表
+  function renderToyInnerVoiceHistory() {
+    const listEl = document.getElementById('toy-inner-voice-history-list');
+    const emptyEl = document.getElementById('toy-inner-voice-history-empty');
+
+    if (!listEl) return;
+
+    const history = activeToySession?.innerVoiceHistory || [];
+
+    if (history.length === 0) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    // 按时间倒序显示（最新的在前）
+    const sortedHistory = [...history].reverse();
+
+    listEl.innerHTML = sortedHistory.map((item, idx) => {
+      const time = new Date(item.timestamp).toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const preview = item.thoughts || item.behavior || item.clothing || '无内容';
+      const originalIndex = history.length - 1 - idx; // 原始数组中的索引
+
+      return `
+        <div class="toy-inner-voice-history-item" data-index="${originalIndex}">
+          <span class="toy-inner-voice-history-delete" data-index="${originalIndex}" title="删除">删除</span>
+          <div class="toy-inner-voice-history-time">${time}</div>
+          <div class="toy-inner-voice-history-preview">${escapeHtml(preview)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 查看单条历史心声
+  function viewToyInnerVoiceItem(index) {
+    const history = activeToySession?.innerVoiceHistory || [];
+    if (index < 0 || index >= history.length) return;
+
+    const item = history[index];
+
+    // 临时设置为当前显示的心声
+    const tempLatest = activeToySession.latestInnerVoice;
+    activeToySession.latestInnerVoice = item;
+    renderToyInnerVoice();
+
+    // 切换到主面板
+    backFromToyInnerVoiceHistory();
+
+    // 恢复原来的最新心声（用户关闭面板后会恢复）
+    // 注：这里不恢复，让用户可以查看历史中的某条
+  }
+
+  // 删除单条心声
+  async function deleteToyInnerVoice(index) {
+    if (!activeToySession?.innerVoiceHistory) return;
+
+    const history = activeToySession.innerVoiceHistory;
+    if (index < 0 || index >= history.length) return;
+
+    // 删除指定条目
+    history.splice(index, 1);
+
+    // 如果删除的是最新的心声，更新latestInnerVoice
+    if (history.length === 0) {
+      activeToySession.latestInnerVoice = null;
+    } else {
+      // 最新的是数组的最后一条
+      activeToySession.latestInnerVoice = history[history.length - 1];
+    }
+
+    // 保存并重新渲染
+    await saveToyHistory();
+    renderToyInnerVoiceHistory();
+  }
+
+  // 清空所有心声
+  async function clearAllToyInnerVoice() {
+    if (!activeToySession) return;
+    if (!confirm('确定要清空所有心声记录吗？此操作不可恢复！')) return;
+
+    activeToySession.innerVoiceHistory = [];
+    activeToySession.latestInnerVoice = null;
+
+    await saveToyHistory();
+    renderToyInnerVoiceHistory();
+    renderToyInnerVoice();
+  }
+
+  // ===================================================================
   // 8. 事件绑定
   // ===================================================================
 
@@ -1151,6 +1371,76 @@ ${continuationHint}
       toyMemoryCount = parseInt(e.target.value) || 20;
       if (toyMemoryValue) {
         toyMemoryValue.textContent = toyMemoryCount;
+      }
+    });
+  }
+
+  // ===================================================================
+  // 心声面板事件
+  // ===================================================================
+  const toyInnerVoiceBtn = document.getElementById('toy-inner-voice-btn');
+  const toyInnerVoiceModal = document.getElementById('toy-inner-voice-modal');
+  const toyCloseInnerVoiceModal = document.getElementById('toy-close-inner-voice-modal');
+  const toyInnerVoiceHistoryBtn = document.getElementById('toy-inner-voice-history-btn');
+  const toyBackFromHistoryBtn = document.getElementById('toy-back-from-history-btn');
+  const toyClearAllInnerVoiceBtn = document.getElementById('toy-clear-all-inner-voice-btn');
+  const toyInnerVoiceHistoryList = document.getElementById('toy-inner-voice-history-list');
+
+  // 打开心声面板
+  if (toyInnerVoiceBtn) {
+    toyInnerVoiceBtn.addEventListener('click', openToyInnerVoiceModal);
+  }
+
+  // 关闭心声面板
+  if (toyCloseInnerVoiceModal) {
+    toyCloseInnerVoiceModal.addEventListener('click', closeToyInnerVoiceModal);
+  }
+
+  // 点击模态框外部关闭
+  if (toyInnerVoiceModal) {
+    toyInnerVoiceModal.addEventListener('click', (e) => {
+      if (e.target === toyInnerVoiceModal) {
+        closeToyInnerVoiceModal();
+      }
+    });
+  }
+
+  // 打开历史记录
+  if (toyInnerVoiceHistoryBtn) {
+    toyInnerVoiceHistoryBtn.addEventListener('click', toggleToyInnerVoiceHistory);
+  }
+
+  // 从历史返回
+  if (toyBackFromHistoryBtn) {
+    toyBackFromHistoryBtn.addEventListener('click', backFromToyInnerVoiceHistory);
+  }
+
+  // 清空所有心声
+  if (toyClearAllInnerVoiceBtn) {
+    toyClearAllInnerVoiceBtn.addEventListener('click', clearAllToyInnerVoice);
+  }
+
+  // 历史列表事件委托（点击查看、删除）
+  if (toyInnerVoiceHistoryList) {
+    toyInnerVoiceHistoryList.addEventListener('click', (e) => {
+      // 删除按钮
+      const deleteBtn = e.target.closest('.toy-inner-voice-history-delete');
+      if (deleteBtn) {
+        e.stopPropagation();
+        const index = parseInt(deleteBtn.dataset.index);
+        if (!isNaN(index)) {
+          deleteToyInnerVoice(index);
+        }
+        return;
+      }
+
+      // 点击整行查看
+      const historyItem = e.target.closest('.toy-inner-voice-history-item');
+      if (historyItem) {
+        const index = parseInt(historyItem.dataset.index);
+        if (!isNaN(index)) {
+          viewToyInnerVoiceItem(index);
+        }
       }
     });
   }
